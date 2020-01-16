@@ -6,20 +6,8 @@ LIBNAME EPI5345 '/folders/myshortcuts/SAS_windows/myfolders/LOGISTIC';
 AND THEN SET THE SAS FILE LATER*/ 
 
 * Describe the content of the dataset;
-proc contents data=epi5345.wcgs; varnum;
-run;/*VARNUM ORDERS THE VARIABLES INTO CATEGORIES?*/ 
- 
- * Print the dataset SHOWS ALL INDIVIDUAL OBSERVATIONS;
-proc print data=epi5345.wcgs;
-run;
-
-* Describe the content of the dataset;
-proc contents data=epi5345.wcgs; varnum;
-run;
-
-* Print the dataset;
-proc print data=epi5345.wcgs;
-run;
+proc contents data=epi5345.wcgs;
+run; 
 
 * Exploratory analysis - Descritpive statistics;
 * Frequency tables for categorical variables;
