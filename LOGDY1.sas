@@ -5,15 +5,213 @@ LIBNAME EPI5345 '/folders/myshortcuts/SAS_windows/myfolders/LOGISTIC';
 /* EXCLUDE THE WCGS BECAUSE IT'S A SAS FILE. YOU CALL THE FOLDER LOGISTIC
 AND THEN SET THE SAS FILE LATER*/ 
 
-data EDA;
- set epi5345.wcgs;
- RUN;
-
 * Describe the content of the dataset;
-proc contents data=eda varnum;
+proc contents data=epi5345.wcgs; varnum;
 run;/*VARNUM ORDERS THE VARIABLES INTO CATEGORIES?*/ 
  
  * Print the dataset SHOWS ALL INDIVIDUAL OBSERVATIONS;
 proc print data=epi5345.wcgs;
 run;
 
+* Describe the content of the dataset;
+proc contents data=epi5345.wcgs; varnum;
+run;
+
+* Print the dataset;
+proc print data=epi5345.wcgs;
+run;
+
+* Exploratory analysis - Descritpive statistics;
+* Frequency tables for categorical variables;
+proc freq data=epi5345.wcgs;
+ table chd69 smoke arcus behpat;
+run;
+* Recode arcus;
+data ready;
+ set epi5345.wcgs;
+ if arcus="present" then arcusd=1;
+ else if arcus="absent" then arcusd=0;
+ else arcusd=.;
+run;
+proc freq data=ready;
+ table arcus*arcusd;
+run;
+* Descriptive statistics for continuous variables;
+proc univariate data=ready plots;
+ var age sbp dbp chol weightkg bmi;
+run;
+* Removing an outlier - Note that this should never be done without careful investigation first;
+data readynoout;
+ set ready;
+ if chol=645 then delete;
+run;
+* Exploratory analysis of the relationships among outcome and predictors;
+proc freq data=readynoout;
+ tables chd69*(smoke arcusd behpat) smoke*(arcusd behpat) arcusd*behpat / chisq;
+run;
+* Correlation among continuous variables with graph;
+proc corr data=readynoout plots(maxpoints=NONE)=matrix(histogram nvar=all);
+ var age sbp dbp chol weightkg bmi;
+run;
+proc ttest data=readynoout;
+ class chd69;
+ var age sbp dbp chol weightkg bmi;
+run;
+proc ttest data=readynoout;
+ class smoke;
+ var age sbp dbp chol weightkg bmi;
+run;
+proc ttest data=readynoout;
+ class arcusd;
+ var age sbp dbp chol weightkg bmi;
+run;
+* Analysis of variance for behpat (4 categories);
+proc anova data=readynoout;
+ class behpat;
+ model age=behpat;
+run;
+proc anova data=readynoout;
+ class behpat;
+ model sbp=behpat;
+run;
+proc anova data=readynoout;
+ class behpat;
+ model dbp=behpat;
+run;
+proc anova data=readynoout;
+ class behpat;
+ model chol=behpat;
+run;
+proc anova data=readynoout;
+ class behpat;
+ model weightkg=behpat;
+run;
+proc anova data=readynoout;
+ class behpat;
+ model bmi=behpat;
+run;
+
+* Graph of outcome vs. age for illustration purpose (not a useful graph otherwise);
+symbol1 color=black value=circle;
+proc gplot ready;
+ plot chd69*age;
+run;
+quit;
+
+* Example of simple logistic regression models;
+proc logistic data=readynoout;
+ model chd69 (event="yes")=age;
+run;
+proc logistic data=readynoout;
+ class smoke (ref="1") / param=ref;
+ model chd69 (event="yes")=smoke;
+run;
+* Alternative to the class statement by creating dummy variable;
+data wcgs2;
+ set readynoout;
+ if smoke=1 then dsmoke=0;
+ else if smoke=2 then dsmoke=1;
+run;
+proc logistic data=wcgs2;
+ model chd69 (event="yes")=dsmoke;
+run;
+
+* Output predicted probabilities and estimated parameters from model with age;
+proc logistic data=readynoout outest=estparameter;
+ model chd69 (event='yes')=age;
+ output out=predchd p=chdpred xbeta=chdlogit; 
+run;
+* Plots of predicted log odds vs. age and predicted probabilities vs. age;
+symbol1 color=black value=circle;
+proc gplot data=predchd;
+ plot chdlogit*age chdpred*age;
+run;
+quit;
+
+*Example of multiple logistic regression model;
+proc logistic data=readynoout;
+ class smoke (ref="1") behpat (ref="B4") / param=ref;
+ model chd69 (event="yes")=chol age sbp bmi smoke behpat arcusd;
+run;
+* Changing the units for a continuous variable;
+proc logistic data=readynoout;
+ class smoke (ref="1") behpat (ref="B4") / param=ref;
+ model chd69 (event="yes")=chol age sbp bmi smoke behpat;
+ units age=10;
+run;
+
+* Collinearity assessment (we will revisit multicollinearity in session 3 when we talke about regression diagnostics);
+proc logistic data=readynoout;
+ model chd69 (event="yes")=sbp;
+run;
+proc logistic data=readynoout;
+ model chd69 (event="yes")=dbp;
+run;
+proc logistic data=readynoout;
+ model chd69 (event="yes")=sbp dbp;
+run;
+ 
+proc logistic data=readynoout;
+ model chd69 (event="yes")=weightkg;
+run;
+proc logistic data=readynoout;
+ model chd69 (event="yes")=bmi;
+run;
+proc logistic data=readynoout;
+ model chd69 (event="yes")=weightkg bmi;
+run;
+
+* High blood pressure;
+data ready2;
+ set readynoout;
+ if (sbp^=. & dbp^=.) then do;
+     * Missing values are the smallest values in SAS - be careful when using comparisons like smaller than <;
+      * to avoid attributing missing values to another value;
+  if (sbp>=130 | dbp>=80) then hbp=1;
+  else hbp=0;
+ end;
+run;
+proc freq data=ready2;
+ table hbp;
+run;
+proc ttest data=ready2;
+ class hbp;
+ var sbp dbp;
+run;
+* Would you include both hbp and sbp or dbp in a logistic regression model? Why?;
+proc logistic data=ready2;
+ model chd69 (event="yes")=sbp;
+run;
+proc logistic data=ready2;
+ model chd69 (event="yes")=dbp;
+run;
+proc logistic data=ready2;
+ model chd69 (event="yes")=hbp;
+run;
+proc logistic data=ready2;
+ model chd69 (event="yes")=hbp sbp;
+run;
+proc logistic data=ready2;
+ model chd69 (event="yes")=hbp dbp;
+run;
+
+* Confounding assessment in full model;
+proc logistic data=ready2;
+ class smoke (ref="1") behpat (ref="B4") / param=ref;
+ model chd69 (event="yes")=chol age hbp bmi smoke behpat;
+run;
+proc logistic data=ready2;
+ class smoke (ref="1") behpat (ref="B4") / param=ref;
+ model chd69 (event="yes")=chol age hbp bmi behpat;
+run;
+
+ods pdf close;
+
+* If the data is not already in a SAS dataset, you can import data with the Wizard or with proc import;
+* For example, the following statements import the data in a comma-delimited file format;
+proc import out=example
+            datafile="C:\Documents and Settings\roymar09\Mes documents\Google Drive\EPI5345\data\wcgs.csv" 
+            dbms=csv replace;
+     getnames=yes;
+     datarow=2; 
+run;
